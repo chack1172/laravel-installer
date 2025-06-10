@@ -1,11 +1,15 @@
 {
-    "name": "laravel/installer",
-    "description": "Laravel application installer.",
+    "name": "chack1172/laravel-installer",
+    "description": "The Laravel application installer with modern dev tools.",
     "keywords": [
         "laravel"
     ],
     "license": "MIT",
     "authors": [
+        {
+            "name": "chack1172",
+            "email": "chack1172@gmail.com"
+        },
         {
             "name": "Taylor Otwell",
             "email": "taylor@laravel.com"
