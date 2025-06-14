@@ -37,7 +37,7 @@ class DevToolsCommand extends Command
             ->addOption('commit', null, InputOption::VALUE_NONE, 'Commit changes on Git repository')
             ->addOption('pint', null, InputOption::VALUE_NONE, 'Install the Pint code style fixer')
             ->addOption('pint-preset', null, InputOption::VALUE_REQUIRED, 'Define the pint preset')
-            ->addOption('scripts', null, InputOption::VALUE_NONE, 'Write all scripts in composer.json');
+            ->addOption('scripts', null, InputOption::VALUE_NONE, 'Write all recommended scripts in composer.json');
     }
 
     /**
@@ -57,7 +57,7 @@ class DevToolsCommand extends Command
 
         if (! $input->getOption('scripts')) {
             $input->setOption('scripts', confirm(
-                label: 'Would you like to add scripts in composer.json?',
+                label: 'Would you like to add all recommended scripts in composer.json?',
                 default: true,
             ));
         }
@@ -86,17 +86,7 @@ class DevToolsCommand extends Command
 
         $this->installPint();
 
-        // Add test script
-        $this->changeScripts(function (array $scripts) use ($input) {
-            unset($scripts['test']); // Move test script at the end
-            $scripts['test'] = [];
-
-            if ($input->getOption('pint')) {
-                $scripts['test'][] = '@test:lint';
-            }
-
-            return $scripts;
-        });
+        $this->addComposerScripts();
 
         return 0;
     }
@@ -144,15 +134,38 @@ class DevToolsCommand extends Command
             ':preset' => $preset,
         ]);
 
-        // Add lint scripts
-        $this->changeScripts(function (array $scripts) {
-            $scripts['lint'] = 'pint';
-            $scripts['test:list'] = 'pint --test';
+        $this->commitChanges($installed ? 'Install Pint' : 'Added Pint config and scripts');
+    }
 
-            return $scripts;
+    /**
+     * Add all recommended scripts in composer.json.
+     *
+     * @return void
+     */
+    protected function addComposerScripts(): void
+    {
+        if (! $this->input->getOption('scripts')) {
+            return;
+        }
+
+        $this->composer->modify(function ($content) {
+            $scripts = $content['scripts'] ?? [];
+
+            if ($this->input->getOption('pint')) {
+                $scripts['lint'] = 'pint';
+                $scripts['test:lint'] = 'pint --test';
+            }
+
+            $scripts['test'] = [];
+            if ($this->input->getOption('pint')) {
+                $scripts['test'][] = '@test:lint';
+            }
+
+            $content['scripts'] = $scripts;
+            return $content;
         });
 
-        $this->commitChanges($installed ? 'Install Pint' : 'Added Pint config and scripts');
+        $this->commitChanges('Added composer scripts');
     }
 
     /**
@@ -167,26 +180,6 @@ class DevToolsCommand extends Command
         if (!file_exists($this->directory . '/composer.json')) {
             throw new RuntimeException('File composer.json not found!');
         }
-    }
-
-    /**
-     * Modify the scripts in the "composer.json" file using the given callback.
-     *
-     * @param  callable(array):array  $callback
-     * @return void
-     *
-     * @throw \RuntimeException
-     */
-    protected function changeScripts(callable $callback): void
-    {
-        if (! $this->input->getOption('scripts')) {
-            return;
-        }
-
-        $this->composer->modify(function ($content) use ($callback) {
-            $content['scripts'] = $callback($content['scripts']);
-            return $content;
-        });
     }
 
     /**
