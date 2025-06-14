@@ -103,8 +103,8 @@ class DevToolsCommand extends Command
 
     /**
      * Install Pint into the application.
-     * 
-     * @return void 
+     *
+     * @return void
      */
     protected function installPint(): void
     {
@@ -140,7 +140,7 @@ class DevToolsCommand extends Command
             );
         }
 
-        $this->copyAsset('pint.json', 'pint.json', [
+        $this->copyStub('pint.stub', 'pint.json', [
             ':preset' => $preset,
         ]);
 
@@ -157,9 +157,9 @@ class DevToolsCommand extends Command
 
     /**
      * Verify that we are in a project with a composer.json.
-     * 
+     *
      * @return void
-     * 
+     *
      * @throw \RuntimeException
      */
     private function verifyInsideComposerProject(): void
@@ -221,21 +221,21 @@ class DevToolsCommand extends Command
         return $this->baseRunCommands($commands, $this->input, $this->output, $this->directory, $env);
     }
 
-    protected function copyAsset(string $assetFile, string $targetFile, array $replaces = [])
+    protected function copyStub(string $stubFile, string $targetFile, array $replaces = [])
     {
         $targetPath = $this->directory . '/' . $targetFile;
 
         if (file_exists($targetPath)) {
             if (! confirm(
-                label: "File {$assetFile} already exists. Would you like to replace it?",
+                label: "File {$stubFile} already exists. Would you like to replace it?",
                 default: false,
             )) {
                 return;
             }
         }
-        
-        if (! copy(dirname(__DIR__) . '/assets/' . $assetFile, $targetPath)) {
-            throw new RuntimeException("Cannot copy asset file {$assetFile}!");
+
+        if (! copy(dirname(__DIR__) . '/stubs/' . $stubFile, $targetPath)) {
+            throw new RuntimeException("Cannot copy asset file {$stubFile}!");
         }
 
         if (count($replaces) > 0) {
