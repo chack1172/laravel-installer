@@ -37,6 +37,8 @@ class DevToolsCommand extends Command
             ->addOption('commit', null, InputOption::VALUE_NONE, 'Commit changes on Git repository')
             ->addOption('pint', null, InputOption::VALUE_NONE, 'Install the Pint code style fixer')
             ->addOption('pint-preset', null, InputOption::VALUE_REQUIRED, 'Define the pint preset')
+            ->addOption('rector', null, InputOption::VALUE_NONE, 'Install the Rector core code refactorer')
+            ->addOption('rector-laravel', null, InputOption::VALUE_NONE, 'Install the Laravel Rector code refactorer')
             ->addOption('scripts', null, InputOption::VALUE_NONE, 'Write all recommended scripts in composer.json');
     }
 
@@ -85,6 +87,7 @@ class DevToolsCommand extends Command
         $this->initComposer($this->directory);
 
         $this->installPint();
+        $this->installRector();
 
         $this->addComposerScripts();
 
@@ -138,6 +141,60 @@ class DevToolsCommand extends Command
     }
 
     /**
+     * Install Rector into the application.
+     *
+     * @return void
+     */
+    protected function installRector(): void
+    {
+        if (! $this->input->getOption('rector') && ! $this->input->getOption('rector-laravel') && $this->input->isInteractive()) {
+            match (select(
+                label: 'Which Rector for code do you prefer?',
+                options: ['rector', 'rector-laravel'],
+                default: 'rector',
+            )) {
+                'rector-laravel' => $this->input->setOption('rector-laravel', true),
+                default => $this->input->setOption('rector', true),
+            };
+        }
+
+        if ($this->input->getOption('rector-laravel')) {
+            $this->installLaravelRector();
+            return;
+        }
+
+        $composerBinary = $this->findComposer();
+
+        $commands = [
+            $composerBinary.' require rector/rector --dev',
+        ];
+
+        $this->runCommands($commands);
+
+        $this->copyStub('rector.stub', 'rector.php');
+
+        $this->commitChanges('Install Rector');
+    }
+
+    /**
+     * Install Laravel Rector into the application.
+     */
+    protected function installLaravelRector(): void
+    {
+        $composerBinary = $this->findComposer();
+
+        $commands = [
+            $composerBinary . ' require rector/rector driftingly/rector-laravel --dev',
+        ];
+
+        $this->runCommands($commands);
+
+        $this->copyStub('rector-laravel.stub', 'rector.php');
+
+        $this->commitChanges('Install Laravel Rector');
+    }
+
+    /**
      * Add all recommended scripts in composer.json.
      *
      * @return void
@@ -156,7 +213,24 @@ class DevToolsCommand extends Command
                 $scripts['test:lint'] = 'pint --test';
             }
 
-            $scripts['test'] = [];
+            if ($this->input->getOption('rector') || $this->input->getOption('rector-laravel')) {
+                if (isset($scripts['lint'])) {
+                    if (is_array($scripts['lint'])) {
+                        if (! in_array('rector', $scripts['lint'])) {
+                            $scripts['lint'][] = 'rector';
+                        }
+                    } elseif ($scripts['lint'] !== 'rector') {
+                        $scripts['lint'] = [
+                            $scripts['lint'],
+                            'rector',
+                        ];
+                    }
+                } else {
+                    $scripts['lint'] = ['rector'];
+                }
+            }
+
+            $scripts['test'] = $scripts['test'] ?? [];
             if ($this->input->getOption('pint')) {
                 $scripts['test'][] = '@test:lint';
             }
@@ -228,7 +302,7 @@ class DevToolsCommand extends Command
         }
 
         if (! copy(dirname(__DIR__) . '/stubs/' . $stubFile, $targetPath)) {
-            throw new RuntimeException("Cannot copy asset file {$stubFile}!");
+            throw new RuntimeException("Cannot copy stub file {$stubFile}!");
         }
 
         if (count($replaces) > 0) {
